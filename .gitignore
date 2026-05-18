@@ -1,0 +1,26 @@
+# 의존성
+node_modules/
+package-lock.json
+
+# 환경/비밀 (API 키 절대 올리지 마)
+config/ai-config.json
+.env
+.env.local
+*.key
+
+# 로그
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 에디터
+.vscode/
+.idea/
+
+# 빌드 산출물
+dist/
+build/

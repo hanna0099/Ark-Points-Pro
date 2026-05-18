@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Ark Points Pro</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <button id="home-btn" class="home-btn hidden" onclick="goHome()" title="홈으로">🏠</button>
+      <img src="logo.png" alt="Ark" class="brand-logo">
+      <span class="brand-name">Ark Points Pro</span>
+      <span class="tag">Vrew SRT → 포인트자막 + 효과음 → PP 자동 반영</span>
+    </div>
+    <div class="status" id="status">
+      <span class="dot" id="dot"></span>
+      <span id="status-text">연결 확인 중...</span>
+    </div>
+  </header>
+
+  <!-- 단계 표시 -->
+  <div class="steps" id="steps">
+    <div class="step active" id="step1"><span>1</span> SRT 선택</div>
+    <div class="step" id="step2"><span>2</span> 포인트 자막</div>
+    <div class="step" id="step3"><span>3</span> 효과음 매칭</div>
+    <div class="step" id="step4"><span>4</span> PP 반영</div>
+  </div>
+
+  <main>
+    <!-- ============================================
+         페이지 1: SRT 선택
+         ============================================ -->
+    <section class="card" id="page-1">
+      <h2>1️⃣ Vrew에서 만든 SRT 파일을 선택하세요</h2>
+      <p class="hint">
+        💡 <b>Vrew에서 SRT를 다운받아 PP 프로젝트에 임포트한 다음</b>, 아래 버튼을 누르세요.
+        프로젝트 폴더와 시퀀스 영상 폴더를 자동 검색합니다.
+      </p>
+      <div class="actions">
+        <button class="primary" onclick="detectSrt()">📋 SRT 파일 자동 감지</button>
+      </div>
+      <div id="srt-list"></div>
+    </section>
+
+    <!-- ============================================
+         페이지 2: 포인트 자막 추천 + 편집
+         ============================================ -->
+    <section class="card" id="page-2" style="display:none">
+      <div class="page-header">
+        <h2>2️⃣ 포인트 자막</h2>
+        <div class="actions-inline">
+          <span class="muted" id="srt-info"></span>
+          <button onclick="goToStep(1)">← 이전</button>
+          <button onclick="regeneratePoints('keep')" title="⭐로 표시한 자막은 그대로 두고 나머지만 다시 추천">⭐ 선택 외 다시 추천</button>
+          <button onclick="regeneratePoints('all')" title="유지 선택 무시하고 전체 다시 추천">🔄 전체 다시 추천</button>
+          <button class="primary" onclick="goToStep(3)">효과음 매칭 →</button>
+        </div>
+      </div>
+
+      <div id="ai-status-banner" class="ai-status-banner">
+        <span id="ai-status-text">⚠️ 현재 <b>규칙 기반 모드</b>입니다. 진짜 자연스러운 요약을 원하면 <b>Gemini AI</b>를 활성화하세요!</span>
+        <button onclick="toggleAISettings()" class="primary">🤖 AI 활성화</button>
+      </div>
+
+      <div class="settings-row">
+        <label>추천 개수:
+          <input type="number" id="point-count" value="13" min="5" max="60" style="width:70px">
+        </label>
+        <span class="muted" id="count-hint">영상 길이에 따라 자동 조정 (분당 1.3개 권장)</span>
+        <button onclick="toggleAISettings()" id="ai-settings-btn" style="margin-left:auto">🤖 AI 설정</button>
+      </div>
+
+      <!-- AI 설정 패널 -->
+      <div id="ai-settings-panel" style="display:none" class="ai-settings">
+        <h3>🤖 AI 요약 설정</h3>
+        <div class="ai-privacy-note">
+          🔒 <strong>API 키는 본인 PC의 config 폴더에만 저장</strong>됩니다. 외부로 전송되지 않아요.
+        </div>
+        <div class="ai-options">
+          <label class="ai-option">
+            <input type="radio" name="ai-provider" value="rule" id="ai-rule">
+            <div>
+              <strong>📐 규칙 기반 (무료)</strong>
+              <small>API 키 불필요. 한국어 패턴 분석으로 요약. 품질 보통.</small>
+            </div>
+          </label>
+          <label class="ai-option">
+            <input type="radio" name="ai-provider" value="gemini" id="ai-gemini">
+            <div>
+              <strong>✨ Google Gemini (무료)</strong>
+              <small>월 1500회 무료. <a href="https://aistudio.google.com/app/apikey" target="_blank">키 발급 →</a></small>
+            </div>
+          </label>
+          <label class="ai-option recommended">
+            <input type="radio" name="ai-provider" value="claude" id="ai-claude">
+            <div>
+              <strong>🏆 Claude Sonnet 4.5 (추천 - 최고 품질)</strong>
+              <small>한국어 자막 최강. 영상 1편당 약 12원.
+                <a href="https://console.anthropic.com/settings/keys" target="_blank">키 발급 →</a>
+                (가입 시 $5 무료 = 약 400편)</small>
+            </div>
+          </label>
+        </div>
+        <div class="ai-key-row" id="ai-key-row" style="display:none">
+          <label id="ai-key-label">API 키:
+            <input type="password" id="ai-api-key" placeholder="">
+          </label>
+          <button onclick="testAI()">🧪 키 테스트</button>
+          <button class="primary" onclick="saveAIConfig()">💾 저장</button>
+        </div>
+        <div id="ai-test-result"></div>
+      </div>
+
+      <div class="hotkeys">
+        💡 카테고리 드롭다운으로 분류 변경 · 텍스트는 자유롭게 수정 · 원문은 오른쪽 패널에서 위치 확인 · <b>Ctrl+Z</b>로 삭제/재추천 되돌리기
+      </div>
+
+      <div class="split-pane">
+        <div class="point-list points-pane" id="point-list"></div>
+        <div class="transcript-pane" id="transcript-pane">
+          <div class="transcript-header">📜 SRT 원문 전체</div>
+          <div class="transcript-body" id="transcript-body"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================
+         페이지 3: 효과음 매칭
+         ============================================ -->
+    <section class="card" id="page-3" style="display:none">
+      <div class="page-header">
+        <h2>3️⃣ 효과음 자동 매칭</h2>
+        <div class="actions-inline">
+          <button onclick="goToStep(2)">← 이전</button>
+          <button onclick="rematchSounds()">🎲 다시 랜덤 매칭</button>
+          <button class="primary" onclick="goToStep(4)">PP 반영 →</button>
+        </div>
+      </div>
+
+      <!-- 규칙 표시 + 편집 -->
+      <div class="sound-rules-card">
+        <div class="rules-header">
+          <h3>📋 카테고리별 효과음 규칙</h3>
+          <button onclick="toggleRuleEditor()" id="edit-btn">⚙️ 규칙 편집</button>
+        </div>
+        <div id="rule-display"></div>
+        <div id="rule-editor" style="display:none"></div>
+      </div>
+
+      <div class="sound-list" id="sound-list"></div>
+    </section>
+
+    <!-- ============================================
+         페이지 4: PP 반영
+         ============================================ -->
+    <section class="card" id="page-4" style="display:none">
+      <div class="page-header">
+        <h2>4️⃣ PP에 적용</h2>
+        <div class="actions-inline">
+          <button onclick="goToStep(3)">← 이전</button>
+        </div>
+      </div>
+
+      <div class="apply-summary" id="apply-summary"></div>
+
+      <div class="apply-options">
+        <label>
+          <input type="checkbox" id="include-sounds" checked>
+          효과음도 함께 적용 (오디오 트랙 A2)
+        </label>
+        <label>
+          오디오 트랙 인덱스:
+          <select id="audio-track">
+            <option value="1" selected>A2 (두 번째)</option>
+            <option value="2">A3 (세 번째)</option>
+            <option value="3">A4 (네 번째)</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="apply-warning">
+        ⚠️ <b>기존 캡션 트랙(C1, C2)이 있다면 PP에서 미리 삭제</b>해주세요.
+        그래야 트랙이 누적되지 않습니다.
+      </div>
+
+      <div class="apply-action">
+        <button class="primary big" onclick="applyToPP()">🚀 PP에 적용 시작</button>
+      </div>
+
+      <div id="apply-result"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
