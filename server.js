@@ -421,8 +421,14 @@ app.post('/api/apply-to-pp', async (req, res) => {
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const pointsSrt = path.join(srtDir, `포인트자막_${ts}.srt`);
 
+    // 자막 텍스트의 쉼표(,)를 SRT 줄바꿈으로 변환 (사용자 컨벤션)
+    // 예: "눈 피로, 두통, 집중력 저하" → "눈 피로\n두통\n집중력 저하"
+    // 단 "1. 안녕, 친구야" 같은 자연 쉼표는 보존하려면... 일단 모든 쉼표 → 줄바꿈
+    // (포인트 자막에선 쉼표가 거의 시각적 분리 용도)
     const srtCaptions = points.map(p => ({
-      start: p.start, end: p.end, text: p.text
+      start: p.start,
+      end: p.end,
+      text: (p.text || '').replace(/\s*,\s*/g, '\n')
     }));
     fs.writeFileSync(pointsSrt, srtParser.generateSrt(srtCaptions), 'utf-8');
 
