@@ -903,3 +903,18 @@ input:focus, select:focus {
     top: 0;
   }
 }
+
+/* 작은 버튼 (시퀀스 새로고침 같은 인라인 버튼) */
+.small-btn {
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+}
+.apply-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.apply-options select {
+  min-width: 180px;
+}

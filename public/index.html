@@ -5,6 +5,9 @@
   <title>Ark Points Pro</title>
   <link rel="icon" type="image/png" href="logo.png">
   <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;700&family=Nanum+Gothic:wght@400;700&family=Noto+Sans+KR:wght@400;700&family=Jua&family=Black+Han+Sans&family=Gowun+Dodum&display=swap" rel="stylesheet">
 </head>
 <body>
   <header>
@@ -55,7 +58,8 @@
           <button onclick="goToStep(1)">← 이전</button>
           <button onclick="regeneratePoints('keep')" title="⭐로 표시한 자막은 그대로 두고 나머지만 다시 추천">⭐ 선택 외 다시 추천</button>
           <button onclick="regeneratePoints('all')" title="유지 선택 무시하고 전체 다시 추천">🔄 전체 다시 추천</button>
-          <button class="primary" onclick="goToStep(3)">효과음 매칭 →</button>
+          <button onclick="proceedWithStarsOnly()" title="⭐ 별표 표시한 자막만 다음 단계로" id="btn-stars-only">⭐ 별표만 →</button>
+          <button class="primary" onclick="goToStep(3)">효과음 매칭 (전체) →</button>
         </div>
       </div>
 
@@ -167,22 +171,55 @@
 
       <div class="apply-options">
         <label>
-          <input type="checkbox" id="include-sounds" checked>
-          효과음도 함께 적용 (오디오 트랙 A2)
+          🎬 대상 시퀀스:
+          <select id="target-sequence">
+            <option value="">(현재 활성 시퀀스)</option>
+          </select>
+          <button onclick="refreshSequences()" class="small-btn" title="시퀀스 목록 다시 불러오기">🔄</button>
         </label>
         <label>
-          오디오 트랙 인덱스:
+          📝 캡션 트랙 위치:
+          <select id="caption-track-pos">
+            <option value="-1" selected>맨 뒤에 추가 (안전)</option>
+            <option value="0">C1 (맨 앞)</option>
+            <option value="1">C2</option>
+            <option value="2">C3</option>
+            <option value="3">C4</option>
+          </select>
+        </label>
+        <label title="기존 모든 캡션 트랙의 클립을 비웁니다 (트랙 자체는 유지)">
+          <input type="checkbox" id="clear-existing-captions">
+          🧹 기존 캡션 트랙 다 비우고 적용 (C1 위치 보장)
+        </label>
+        <div class="font-manual-guide" style="padding:12px 14px;background:#fff8e0;border:1px solid #f0c040;border-radius:8px;margin:6px 0">
+          <div style="font-weight:600;color:#7c5a00;margin-bottom:6px">🔤 자막 폰트 변경 (PP에서 30초)</div>
+          <div style="font-size:12px;color:#5d4400;line-height:1.6">
+            PP는 외부 도구로 캡션 폰트를 못 바꿔요. PP에 반영된 후 직접 바꿔야 해요:<br>
+            <b>1.</b> 타임라인에서 캡션 트랙 클릭 → <b>Ctrl+A</b> (해당 트랙 클립 전체 선택)<br>
+            <b>2.</b> 메뉴: <b>창 → 기본 그래픽</b> 패널 열기<br>
+            <b>3.</b> 편집 탭 → 텍스트 → <b>폰트 드롭다운</b>에서 원하는 폰트 선택<br>
+            → 선택한 모든 캡션에 일괄 적용됨
+          </div>
+        </div>
+        <hr style="border:none;border-top:1px dashed #e5e2d5;margin:8px 0;width:100%">
+        <label>
+          <input type="checkbox" id="include-sounds" checked>
+          효과음도 함께 적용
+        </label>
+        <label>
+          🔊 오디오 트랙 인덱스:
           <select id="audio-track">
             <option value="1" selected>A2 (두 번째)</option>
             <option value="2">A3 (세 번째)</option>
             <option value="3">A4 (네 번째)</option>
+            <option value="4">A5</option>
+            <option value="5">A6</option>
           </select>
         </label>
       </div>
 
       <div class="apply-warning">
-        ⚠️ <b>기존 캡션 트랙(C1, C2)이 있다면 PP에서 미리 삭제</b>해주세요.
-        그래야 트랙이 누적되지 않습니다.
+        ⚠️ <b>이미 같은 위치에 캡션/효과음 트랙이 있으면 누적</b>될 수 있어요. 미리 PP에서 정리하거나, 위에서 다른 위치를 선택하세요.
       </div>
 
       <div class="apply-action">

@@ -295,6 +295,97 @@ app.post('/api/sound-rules', (req, res) => {
   }
 });
 
+// 현재 프로젝트의 모든 시퀀스 목록
+app.get('/api/list-sequences', async (req, res) => {
+  try {
+    const r = await bridge.executeScript(`
+      var seqs = [];
+      var activeName = app.project.activeSequence ? app.project.activeSequence.name : null;
+      for (var i = 0; i < app.project.sequences.numSequences; i++) {
+        var s = app.project.sequences[i];
+        seqs.push({
+          name: s.name,
+          id: s.sequenceID,
+          isActive: (s.name === activeName)
+        });
+      }
+      return __result({sequences: seqs, activeName: activeName});
+    `);
+    res.json(r);
+  } catch (e) {
+    res.status(500).json({ error: e.message, sequences: [] });
+  }
+});
+
+// 네이티브 폴더 선택 다이얼로그 - VBS BrowseForFolder (즉시 뜸, 안정적)
+app.post('/api/pick-folder', (req, res) => {
+  const { spawn } = require('child_process');
+  const fsMod = require('fs');
+  const pathMod = require('path');
+  const osMod = require('os');
+
+  const ts = Date.now();
+  const resultFile = pathMod.join(osMod.tmpdir(), `arkfolder_${ts}.txt`);
+  const vbsFile = pathMod.join(osMod.tmpdir(), `arkfolder_${ts}.vbs`);
+
+  // BrowseForFolder 옵션 flag:
+  // 0x0001 = 자식 폴더만, 0x0010 = 텍스트 입력 가능, 0x0040 = 새 폴더 만들기
+  // 합쳐서 0x0051 = 81
+  const vbsContent = `Dim objShell, objFolder, objFile, fso, p
+Set objShell = CreateObject("Shell.Application")
+Set objFolder = objShell.BrowseForFolder(0, "Select Sound Folder (Click OK after selecting)", 81)
+If Not objFolder Is Nothing Then
+  On Error Resume Next
+  p = objFolder.Self.Path
+  If Err.Number <> 0 Then
+    Err.Clear
+    p = ""
+  End If
+  If p <> "" Then
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set objFile = fso.CreateTextFile("${resultFile.replace(/\\/g, '\\\\')}", True, True)
+    objFile.WriteLine p
+    objFile.Close
+  End If
+End If`;
+
+  try {
+    fsMod.writeFileSync(vbsFile, vbsContent, 'utf-8');
+  } catch (e) {
+    return res.status(500).json({ error: 'VBS 쓰기 실패: ' + e.message });
+  }
+
+  const proc = spawn('wscript.exe', ['//NoLogo', vbsFile], { windowsHide: false });
+
+  const timeout = setTimeout(() => {
+    try { proc.kill(); } catch (e) {}
+  }, 120000);
+
+  proc.on('close', () => {
+    clearTimeout(timeout);
+    let selected = null;
+    try {
+      if (fsMod.existsSync(resultFile)) {
+        const buf = fsMod.readFileSync(resultFile);
+        let text;
+        if (buf[0] === 0xff && buf[1] === 0xfe) {
+          text = buf.toString('utf16le', 2);
+        } else {
+          text = buf.toString('utf8');
+        }
+        selected = text.replace(/[\r\n\0]/g, '').trim();
+        fsMod.unlinkSync(resultFile);
+      }
+      fsMod.unlinkSync(vbsFile);
+    } catch (e) {}
+    res.json({ path: selected || null });
+  });
+  proc.on('error', e => {
+    clearTimeout(timeout);
+    res.status(500).json({ error: e.message });
+  });
+});
+
 app.get('/api/list-sounds', (req, res) => {
   res.json({ files: soundMatcher.listAvailableSounds(req.query.dir) });
 });
@@ -303,12 +394,27 @@ app.get('/api/list-sounds', (req, res) => {
 // API: PP에 포인트 자막 + 효과음 모두 적용
 // ============================================
 app.post('/api/apply-to-pp', async (req, res) => {
-  const { points, audioTrackIndex = 1, includeSounds = true } = req.body;
+  const { points, audioTrackIndex = 1, includeSounds = true, sequenceName, captionBeforeIndex = -1, fontName, clearExistingCaptions = false } = req.body;
   if (!points || points.length === 0) {
     return res.status(400).json({ error: '포인트 자막 필요' });
   }
   try {
     const result = { ok: true, captions: 0, sounds: 0 };
+
+    // 0. 사용자가 시퀀스를 선택했으면 해당 시퀀스 활성화
+    if (sequenceName) {
+      await bridge.executeScript(`
+        var target = ${JSON.stringify(sequenceName)};
+        for (var i = 0; i < app.project.sequences.numSequences; i++) {
+          var s = app.project.sequences[i];
+          if (s.name === target) {
+            app.project.activeSequence = s;
+            return __result({activated: target});
+          }
+        }
+        return __error("시퀀스 '" + target + "' 찾을 수 없음");
+      `);
+    }
 
     // 1. 포인트 자막 SRT 생성 + PP 임포트
     const srtDir = currentState.srtPath ? path.dirname(currentState.srtPath) : require('os').tmpdir();
@@ -320,10 +426,106 @@ app.post('/api/apply-to-pp', async (req, res) => {
     }));
     fs.writeFileSync(pointsSrt, srtParser.generateSrt(srtCaptions), 'utf-8');
 
-    const captionResult = await bridge.importAndCreateCaption(pointsSrt);
+    // (선택) 기존 캡션 트랙 모두 비우기 - C1 위치 보장하려면 필수
+    if (clearExistingCaptions) {
+      try {
+        await bridge.executeScript(`
+          var seq = app.project.activeSequence;
+          if (!seq) return __error("seq null");
+          var cTracks = seq.captionTracks;
+          var removed = 0;
+          if (cTracks && cTracks.numTracks > 0) {
+            for (var t = 0; t < cTracks.numTracks; t++) {
+              var trk = cTracks[t];
+              if (!trk || !trk.clips) continue;
+              // 트랙의 모든 클립 제거
+              for (var i = trk.clips.numItems - 1; i >= 0; i--) {
+                try { trk.clips[i].remove(false, false); removed++; } catch(e) {}
+              }
+            }
+          }
+          return __result({clearedClips: removed});
+        `);
+      } catch (e) {
+        result.clearWarning = e.message;
+      }
+    }
+
+    const captionResult = await bridge.importAndCreateCaption(pointsSrt, captionBeforeIndex);
     result.captions = points.length;
     result.captionTrack = captionResult;
     result.srtPath = pointsSrt;
+
+    // 폰트 변경은 PP API 한계로 제거 — 사용자가 PP에서 직접 설정
+    if (false && fontName) {
+      try {
+        const fontResult = await bridge.executeScript(`
+          var targetFont = ${JSON.stringify(fontName)};
+          var seq = app.project.activeSequence;
+          if (!seq) return __error("활성 시퀀스 없음");
+          var changed = 0;
+          var errs = [];
+          var debug = [];
+
+          var cTracks = seq.captionTracks || null;
+          if (!cTracks) return __error("captionTracks 속성 없음 (PP 버전 문제 가능)");
+          var nTracks = cTracks.numTracks || 0;
+          if (nTracks === 0) return __error("캡션 트랙 없음");
+
+          // 가장 마지막 추가된 트랙
+          var targetTrack = cTracks[nTracks - 1];
+          if (!targetTrack) return __error("타겟 트랙 접근 불가");
+
+          var clips = targetTrack.clips;
+          if (!clips) return __error("트랙 clips 속성 없음");
+          var nClips = clips.numItems || 0;
+          debug.push("처리할 클립 수: " + nClips);
+
+          for (var i = 0; i < nClips; i++) {
+            var clip = clips[i];
+            try {
+              // 방법 A: clip.captions[j].setFontName
+              var caps = clip.captions;
+              if (caps && (caps.length || caps.numItems)) {
+                var nCaps = caps.length || caps.numItems;
+                for (var j = 0; j < nCaps; j++) {
+                  var cap = caps[j];
+                  if (cap.setFontName) {
+                    try { cap.setFontName(targetFont); changed++; debug.push("A:setFontName"); continue; } catch(eA1) { errs.push("A1:" + eA1.message); }
+                  }
+                  if (cap.fontName !== undefined) {
+                    try { cap.fontName = targetFont; changed++; debug.push("A:fontName="); continue; } catch(eA2) { errs.push("A2:" + eA2.message); }
+                  }
+                }
+              }
+            } catch(eOuterA) { errs.push("A-outer:" + eOuterA.message); }
+
+            // 방법 B: clip의 componentChain에서 "Source Text" 찾아 font 변경 (Essential Graphics 스타일)
+            try {
+              if (clip.components && clip.components.numItems > 0) {
+                for (var c = 0; c < clip.components.numItems; c++) {
+                  var comp = clip.components[c];
+                  if (!comp.properties) continue;
+                  for (var p = 0; p < comp.properties.numItems; p++) {
+                    var prop = comp.properties[p];
+                    var name = "";
+                    try { name = prop.displayName || ""; } catch(e) {}
+                    if (name.toLowerCase().indexOf("font") >= 0 || name.indexOf("폰트") >= 0) {
+                      try { prop.setValue(targetFont, 1); changed++; debug.push("B:" + name + "=" + targetFont); } catch(eB) { errs.push("B:" + eB.message); }
+                    }
+                  }
+                }
+              }
+            } catch(eOuterB) { errs.push("B-outer:" + eOuterB.message); }
+          }
+
+          return __result({fontChanged: changed, attempts: nClips, debug: debug.slice(0, 5), sampleErrors: errs.slice(0, 5)});
+        `);
+        result.fontApplied = fontResult;
+      } catch (e) {
+        result.fontError = '폰트 변경 시도 실패: ' + e.message;
+      }
+    }
 
     // 2. 효과음 - 한 번에 하나씩 임포트 + 배치 (한글 인코딩 안전)
     if (includeSounds) {

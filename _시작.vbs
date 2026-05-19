@@ -7,21 +7,18 @@ helperDir = userProfile & "\Desktop\premiere-helper"
 arkDir = userProfile & "\Desktop\ark-points-pro"
 
 Function IsPortListening(portNum)
-  Dim exec, output, arr, ln, i, marker, found
-  Set exec = WshShell.Exec("netstat -an -p TCP")
-  output = exec.StdOut.ReadAll()
-  arr = Split(output, vbCrLf)
-  marker = ":" & portNum & " "
-  found = False
-  For i = 0 To UBound(arr)
-    ln = arr(i)
-    If InStr(ln, marker) > 0 Then
-      If InStr(ln, "LISTENING") > 0 Then
-        found = True
-      End If
-    End If
-  Next
-  IsPortListening = found
+  On Error Resume Next
+  Dim http
+  Set http = CreateObject("Msxml2.ServerXMLHTTP.6.0")
+  If Err.Number <> 0 Then
+    Err.Clear
+    Set http = CreateObject("Msxml2.ServerXMLHTTP")
+  End If
+  http.SetTimeouts 300, 300, 300, 300
+  http.Open "GET", "http://127.0.0.1:" & portNum & "/", False
+  http.Send
+  IsPortListening = (Err.Number = 0 And http.Status >= 100 And http.Status <= 599)
+  On Error GoTo 0
 End Function
 
 Dim started

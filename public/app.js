@@ -88,7 +88,7 @@ function goToStep(n) {
     if (!currentRules) loadSoundRules();
     if (pointsWithSounds.length === 0) rematchSounds();
   }
-  if (n === 4) renderApplySummary();
+  if (n === 4) { renderApplySummary(); refreshSequences(); bindFontPreview(); }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -329,6 +329,21 @@ function renderPointsLoadingState(isAI) {
 }
 
 function pinKey(p) { return `${p.start}_${p.end}`; }
+
+// ⭐ 별표 친 자막만 다음 단계로
+function proceedWithStarsOnly() {
+  const starred = pointsData.filter(p => pinnedPoints.has(pinKey(p)));
+  if (starred.length === 0) {
+    toast('⭐ 별표 친 자막이 없어요. 먼저 좋은 자막에 별표를 찍어주세요', 'error');
+    return;
+  }
+  if (!confirm(`⭐ 별표 친 ${starred.length}개만 효과음 매칭 단계로 넘어갑니다.\n나머지 ${pointsData.length - starred.length}개는 사라져요.\n\n계속할까요?\n(Ctrl+Z로 되돌릴 수 있어요)`)) return;
+  pushUndoSnapshot('별표만 선택');
+  pointsData = starred;
+  pointsWithSounds = [];
+  renderPoints();
+  goToStep(3);
+}
 
 function togglePin(i) {
   const p = pointsData[i];
@@ -582,9 +597,14 @@ function renderRuleEditor() {
   editor.innerHTML = `
     <div class="rule-editor-folder">
       <span style="font-size:12px;color:#7d8590">📂 폴더:</span>
-      <input type="text" id="rule-sound-dir" value="${escapeHtml(currentRules.soundDir)}">
-      <button onclick="rescanSounds()">🔄 다시 스캔</button>
+      <input type="text" id="rule-sound-dir" value="${escapeHtml(currentRules.soundDir)}"
+        placeholder="예: C:\\Users\\본인\\Documents\\효과음" onkeyup="if(event.key==='Enter') rescanSounds()">
+      <button onclick="pickSoundFolder()" title="윈도우 폴더 선택 창 열기">📁 찾아보기</button>
+      <button onclick="rescanSounds()" title="입력한 폴더의 파일 다시 스캔">🔄 다시 스캔</button>
       <span class="muted">(${availableSounds.length}개 발견)</span>
+    </div>
+    <div class="muted" style="margin-top:6px;font-size:11px">
+      💡 폴더 경로를 직접 붙여넣어도 돼요. 윈도우 탐색기 주소창에서 복사 → 여기 붙여넣기 → "다시 스캔" 클릭
     </div>
     <div class="rule-editor-categories">
       ${Object.entries(CATEGORY_LABELS).map(([cat, label]) => `
@@ -606,8 +626,8 @@ function renderRuleEditor() {
       `).join('')}
     </div>
     <div class="rule-editor-actions">
-      <button class="primary" onclick="saveRules()">💾 저장</button>
-      <button onclick="resetRules()">🔄 기본값</button>
+      <button class="primary" onclick="saveRules()" title="현재 폴더 + 규칙을 내 기본값으로 저장">💾 내 기본값으로 저장</button>
+      <button onclick="resetRules()" title="공장 출고 기본 규칙으로 되돌리기">🔄 공장 기본값</button>
     </div>
   `;
 }
@@ -623,6 +643,21 @@ function removeSoundFromCat(cat, idx) {
   currentRules.categories[cat].splice(idx, 1);
   renderRuleEditor();
 }
+async function pickSoundFolder() {
+  toast('폴더 선택 창을 여는 중...');
+  try {
+    const r = await fetch('/api/pick-folder', { method: 'POST' }).then(r => r.json());
+    if (r.path) {
+      document.getElementById('rule-sound-dir').value = r.path;
+      currentRules.soundDir = r.path;
+      await rescanSounds();
+      toast(`폴더 선택됨: ${r.path}`, 'success');
+    } else {
+      toast('취소됨', '');
+    }
+  } catch (e) { toast('폴더 선택 실패: ' + e.message, 'error'); }
+}
+
 async function rescanSounds() {
   const newDir = document.getElementById('rule-sound-dir').value;
   currentRules.soundDir = newDir;
@@ -723,9 +758,40 @@ function renderApplySummary() {
   `;
 }
 
+function bindFontPreview() {
+  const sel = document.getElementById('caption-font');
+  const box = document.getElementById('font-preview');
+  const text = document.getElementById('font-preview-text');
+  if (!sel || sel.dataset.bound) return;
+  sel.dataset.bound = '1';
+  const update = () => {
+    const v = sel.value;
+    if (!v) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    text.style.fontFamily = `'${v}', sans-serif`;
+  };
+  sel.addEventListener('change', update);
+  update();
+}
+
+async function refreshSequences() {
+  try {
+    const r = await fetch('/api/list-sequences').then(r => r.json());
+    const sel = document.getElementById('target-sequence');
+    const seqs = r.sequences || [];
+    sel.innerHTML = '<option value="">(현재 활성 시퀀스 자동)</option>' +
+      seqs.map(s => `<option value="${escapeHtml(s.name)}" ${s.isActive ? 'selected' : ''}>${escapeHtml(s.name)}${s.isActive ? ' ● 현재' : ''}</option>`).join('');
+    toast(`시퀀스 ${seqs.length}개 발견`, 'success');
+  } catch (e) { toast('시퀀스 조회 실패: ' + e.message, 'error'); }
+}
+
 async function applyToPP() {
   const includeSounds = document.getElementById('include-sounds').checked;
   const audioTrack = parseInt(document.getElementById('audio-track').value, 10);
+  const sequenceName = document.getElementById('target-sequence').value || null;
+  const captionBeforeIndex = parseInt(document.getElementById('caption-track-pos').value, 10);
+  const fontName = null; // PP API 한계로 자동 변경 불가 — PP에서 직접 설정
+  const clearExistingCaptions = document.getElementById('clear-existing-captions').checked;
 
   showLoading('PP에 적용 중...');
   try {
@@ -735,7 +801,11 @@ async function applyToPP() {
       body: JSON.stringify({
         points: pointsWithSounds,
         audioTrackIndex: audioTrack,
-        includeSounds
+        includeSounds,
+        sequenceName,
+        captionBeforeIndex,
+        fontName,
+        clearExistingCaptions
       })
     }).then(r => r.json());
 
