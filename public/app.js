@@ -88,7 +88,7 @@ function goToStep(n) {
     if (!currentRules) loadSoundRules();
     if (pointsWithSounds.length === 0) rematchSounds();
   }
-  if (n === 4) { renderApplySummary(); refreshSequences(); bindFontPreview(); }
+  if (n === 4) { renderApplySummary(); refreshSequences(); }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -758,22 +758,6 @@ function renderApplySummary() {
   `;
 }
 
-function bindFontPreview() {
-  const sel = document.getElementById('caption-font');
-  const box = document.getElementById('font-preview');
-  const text = document.getElementById('font-preview-text');
-  if (!sel || sel.dataset.bound) return;
-  sel.dataset.bound = '1';
-  const update = () => {
-    const v = sel.value;
-    if (!v) { box.style.display = 'none'; return; }
-    box.style.display = 'block';
-    text.style.fontFamily = `'${v}', sans-serif`;
-  };
-  sel.addEventListener('change', update);
-  update();
-}
-
 async function refreshSequences() {
   try {
     const r = await fetch('/api/list-sequences').then(r => r.json());
@@ -790,7 +774,6 @@ async function applyToPP() {
   const audioTrack = parseInt(document.getElementById('audio-track').value, 10);
   const sequenceName = document.getElementById('target-sequence').value || null;
   const captionBeforeIndex = parseInt(document.getElementById('caption-track-pos').value, 10);
-  const fontName = null; // PP API 한계로 자동 변경 불가 — PP에서 직접 설정
   const clearExistingCaptions = document.getElementById('clear-existing-captions').checked;
 
   showLoading('PP에 적용 중...');
@@ -804,7 +787,6 @@ async function applyToPP() {
         includeSounds,
         sequenceName,
         captionBeforeIndex,
-        fontName,
         clearExistingCaptions
       })
     }).then(r => r.json());

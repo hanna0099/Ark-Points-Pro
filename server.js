@@ -394,7 +394,7 @@ app.get('/api/list-sounds', (req, res) => {
 // API: PP에 포인트 자막 + 효과음 모두 적용
 // ============================================
 app.post('/api/apply-to-pp', async (req, res) => {
-  const { points, audioTrackIndex = 1, includeSounds = true, sequenceName, captionBeforeIndex = -1, fontName, clearExistingCaptions = false } = req.body;
+  const { points, audioTrackIndex = 1, includeSounds = true, sequenceName, captionBeforeIndex = -1, clearExistingCaptions = false } = req.body;
   if (!points || points.length === 0) {
     return res.status(400).json({ error: '포인트 자막 필요' });
   }
@@ -461,77 +461,7 @@ app.post('/api/apply-to-pp', async (req, res) => {
     result.captions = points.length;
     result.captionTrack = captionResult;
     result.srtPath = pointsSrt;
-
-    // 폰트 변경은 PP API 한계로 제거 — 사용자가 PP에서 직접 설정
-    if (false && fontName) {
-      try {
-        const fontResult = await bridge.executeScript(`
-          var targetFont = ${JSON.stringify(fontName)};
-          var seq = app.project.activeSequence;
-          if (!seq) return __error("활성 시퀀스 없음");
-          var changed = 0;
-          var errs = [];
-          var debug = [];
-
-          var cTracks = seq.captionTracks || null;
-          if (!cTracks) return __error("captionTracks 속성 없음 (PP 버전 문제 가능)");
-          var nTracks = cTracks.numTracks || 0;
-          if (nTracks === 0) return __error("캡션 트랙 없음");
-
-          // 가장 마지막 추가된 트랙
-          var targetTrack = cTracks[nTracks - 1];
-          if (!targetTrack) return __error("타겟 트랙 접근 불가");
-
-          var clips = targetTrack.clips;
-          if (!clips) return __error("트랙 clips 속성 없음");
-          var nClips = clips.numItems || 0;
-          debug.push("처리할 클립 수: " + nClips);
-
-          for (var i = 0; i < nClips; i++) {
-            var clip = clips[i];
-            try {
-              // 방법 A: clip.captions[j].setFontName
-              var caps = clip.captions;
-              if (caps && (caps.length || caps.numItems)) {
-                var nCaps = caps.length || caps.numItems;
-                for (var j = 0; j < nCaps; j++) {
-                  var cap = caps[j];
-                  if (cap.setFontName) {
-                    try { cap.setFontName(targetFont); changed++; debug.push("A:setFontName"); continue; } catch(eA1) { errs.push("A1:" + eA1.message); }
-                  }
-                  if (cap.fontName !== undefined) {
-                    try { cap.fontName = targetFont; changed++; debug.push("A:fontName="); continue; } catch(eA2) { errs.push("A2:" + eA2.message); }
-                  }
-                }
-              }
-            } catch(eOuterA) { errs.push("A-outer:" + eOuterA.message); }
-
-            // 방법 B: clip의 componentChain에서 "Source Text" 찾아 font 변경 (Essential Graphics 스타일)
-            try {
-              if (clip.components && clip.components.numItems > 0) {
-                for (var c = 0; c < clip.components.numItems; c++) {
-                  var comp = clip.components[c];
-                  if (!comp.properties) continue;
-                  for (var p = 0; p < comp.properties.numItems; p++) {
-                    var prop = comp.properties[p];
-                    var name = "";
-                    try { name = prop.displayName || ""; } catch(e) {}
-                    if (name.toLowerCase().indexOf("font") >= 0 || name.indexOf("폰트") >= 0) {
-                      try { prop.setValue(targetFont, 1); changed++; debug.push("B:" + name + "=" + targetFont); } catch(eB) { errs.push("B:" + eB.message); }
-                    }
-                  }
-                }
-              }
-            } catch(eOuterB) { errs.push("B-outer:" + eOuterB.message); }
-          }
-
-          return __result({fontChanged: changed, attempts: nClips, debug: debug.slice(0, 5), sampleErrors: errs.slice(0, 5)});
-        `);
-        result.fontApplied = fontResult;
-      } catch (e) {
-        result.fontError = '폰트 변경 시도 실패: ' + e.message;
-      }
-    }
+    // 폰트 변경은 PP ExtendScript API 한계로 지원 불가 — 사용자가 PP에서 직접 설정
 
     // 2. 효과음 - 한 번에 하나씩 임포트 + 배치 (한글 인코딩 안전)
     if (includeSounds) {
