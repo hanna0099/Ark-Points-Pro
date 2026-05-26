@@ -109,11 +109,10 @@ app.post('/api/load-srt', async (req, res) => {
       seqDuration = info.duration;
     } catch (e) {}
 
-    // 미리 분석해서 "포인트 자막 후보 개수" 추정
-    let suggestedCount = 0;
+    // 미리 분석해서 "포인트 자막 추천 개수" 추정 (내용 밀도 + 길이 기반)
+    let suggestedCount = 13;
     try {
-      const probe = pointAnalyzer.extractPoints(captions, 100, Date.now()); // 최대 100개까지 뽑아봄
-      suggestedCount = probe.length;
+      suggestedCount = pointAnalyzer.estimatePointCount(captions);
     } catch (e) {}
 
     res.json({
