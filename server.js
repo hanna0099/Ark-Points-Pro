@@ -139,41 +139,17 @@ app.post('/api/generate-points', async (req, res) => {
   try {
     let targetCount = count;
     if (!targetCount) {
-      const lastEnd = currentState.captions[currentState.captions.length - 1].end;
-      const minutes = lastEnd / 60;
-      targetCount = Math.max(8, Math.min(30, Math.round(minutes * 1.3)));
+      targetCount = pointAnalyzer.estimatePointCount(currentState.captions);
     }
-    // 핀 고정된 자막은 시간대 + 원문 텍스트 둘 다로 제외해서 새 추천 뽑음
-    let sourceCaptions = currentState.captions;
-    const excludeTexts = new Set();
-    if (Array.isArray(excludeRanges) && excludeRanges.length > 0) {
-      excludeRanges.forEach(r => { if (r.originalText) excludeTexts.add(r.originalText.trim()); });
-      sourceCaptions = currentState.captions.filter(c => {
-        // 시간 겹침 제외
-        if (excludeRanges.some(r => c.start < r.end && c.end > r.start)) return false;
-        // 원문 텍스트 동일 제외
-        if (excludeTexts.has((c.text || '').trim())) return false;
-        // 인접 시간대(±1초)도 제외 (잘려나간 같은 문장 방지)
-        if (excludeRanges.some(r => Math.abs(c.start - r.end) < 1 || Math.abs(c.end - r.start) < 1)) {
-          // 텍스트가 비슷하면 (앞 10자 일치) 제외
-          const cText = (c.text || '').trim();
-          for (const t of excludeTexts) {
-            if (t && cText && (cText.startsWith(t.substring(0, 10)) || t.startsWith(cText.substring(0, 10)))) return false;
-          }
-        }
-        return true;
-      });
-    }
-    // regen 값을 seed로 사용 (다시 추천 시 다른 결과)
+    // 핀 유지 범위(excludeRanges) 정리
+    const cleanRanges = Array.isArray(excludeRanges) ? excludeRanges.map(r => ({ start: r.start, end: r.end })) : [];
     const seed = regen || Date.now();
-    let points = pointAnalyzer.extractPoints(sourceCaptions, targetCount, seed);
-    // 안전망: 추출 결과에서도 원문 중복 제거
-    if (excludeTexts.size > 0) {
-      points = points.filter(p => !excludeTexts.has((p.originalText || p.text || '').trim()));
-    }
 
-    // AI/규칙 기반 요약
-    points = await summarizer.summarizePoints(points);
+    // AI가 전체 대본에서 직접 포인트 선별 + 요약 (핵심 변경)
+    let points = await summarizer.selectAndSummarizePoints(currentState.captions, targetCount, {
+      excludeRanges: cleanRanges,
+      seed
+    });
     const aiWarning = points._aiWarning || null; // fallback 경고
 
     currentState.points = points;
