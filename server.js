@@ -318,16 +318,22 @@ If Not objFolder Is Nothing Then
     Err.Clear
     p = ""
   End If
-  If p <> "" Then
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set objFile = fso.CreateTextFile("${resultFile.replace(/\\/g, '\\\\')}", True, True)
-    objFile.WriteLine p
-    objFile.Close
+  ' Self.Path가 비면 Items().Item().Path로 대체 시도
+  If p = "" Then
+    p = objFolder.Items().Item().Path
+    If Err.Number <> 0 Then Err.Clear : p = ""
   End If
+  Set fso = CreateObject("Scripting.FileSystemObject")
+  Set objFile = fso.CreateTextFile("${resultFile.replace(/\\/g, '\\\\')}", True, True)
+  objFile.WriteLine p
+  objFile.Close
 End If`;
 
   try {
-    fsMod.writeFileSync(vbsFile, vbsContent, 'utf-8');
+    // UTF-16 LE + BOM으로 저장 → 경로에 한글/특수문자 있어도 wscript가 정확히 읽음
+    const BOM = Buffer.from([0xFF, 0xFE]);
+    const vbsBuf = Buffer.concat([BOM, Buffer.from(vbsContent, 'utf16le')]);
+    fsMod.writeFileSync(vbsFile, vbsBuf);
   } catch (e) {
     return res.status(500).json({ error: 'VBS 쓰기 실패: ' + e.message });
   }
