@@ -406,9 +406,16 @@ async function regeneratePoints(mode) {
     pointsWithSounds = [];
     renderPoints();
     updateAIBanner(r.provider);
-    const provLabel = r.provider === 'claude' ? '🏆 Claude' : (r.provider === 'gemini' ? '✨ Gemini' : '📐 규칙 기반');
-    const note = mode === 'keep' ? ` (⭐ ${keptPoints.length}개 유지 + 새 ${r.points.length}개)` : '';
-    toast(`${pointsData.length}개 추천 완료${note}! (${provLabel})`, 'success');
+
+    // AI 실패 경고 (크레딧 소진 등) - 눈에 띄게 표시
+    if (r.aiWarning) {
+      alert(r.aiWarning + '\n\n현재 자막은 규칙 기반(저품질)이에요.\nAI 설정에서 크레딧 충전 또는 다른 AI로 전환하세요.');
+      toast(r.aiWarning, 'error');
+    } else {
+      const provLabel = r.provider === 'claude' ? '🏆 Claude' : (r.provider === 'gemini' ? '✨ Gemini' : '📐 규칙 기반');
+      const note = mode === 'keep' ? ` (⭐ ${keptPoints.length}개 유지 + 새 ${r.points.length}개)` : '';
+      toast(`${pointsData.length}개 추천 완료${note}! (${provLabel})`, 'success');
+    }
   } catch (e) {
     renderPointsEmptyState();
     toast('실패: ' + e.message, 'error');

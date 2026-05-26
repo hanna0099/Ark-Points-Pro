@@ -174,6 +174,7 @@ app.post('/api/generate-points', async (req, res) => {
 
     // AI/규칙 기반 요약
     points = await summarizer.summarizePoints(points);
+    const aiWarning = points._aiWarning || null; // fallback 경고
 
     currentState.points = points;
     const aiConfig = summarizer.loadAIConfig();
@@ -181,7 +182,8 @@ app.post('/api/generate-points', async (req, res) => {
       points,
       count: points.length,
       suggested: targetCount,
-      provider: aiConfig.provider
+      provider: aiConfig.provider,
+      aiWarning
     });
   } catch (e) {
     console.error('[generate-points]', e);
