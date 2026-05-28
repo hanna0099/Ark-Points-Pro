@@ -2,11 +2,74 @@
   "name": "ark-points-pro",
   "version": "1.0.0",
   "description": "Ark Points Pro - 포인트 자막 + 효과음 자동 생성 도구",
-  "main": "server.js",
+  "main": "electron/main.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "electron .",
+    "dev": "electron .",
+    "server": "node server.js",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
   },
   "dependencies": {
     "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.arkstudio.pointspro",
+    "productName": "Ark Points Pro",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "server.js",
+      "lib/**/*",
+      "public/**/*",
+      "config/**/*",
+      "logo.ico",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "logo.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "installerIcon": "logo.ico",
+      "uninstallerIcon": "logo.ico",
+      "installerHeaderIcon": "logo.ico"
+    },
+    "mac": {
+      "category": "public.app-category.video",
+      "icon": "logo.ico",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "inhwan0988",
+      "repo": "ark-points-pro",
+      "releaseType": "release"
+    }
   }
 }
