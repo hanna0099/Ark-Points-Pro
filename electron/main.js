@@ -26,8 +26,10 @@ let startupFailed = false;
 const PREFERRED_PORT = 3838;
 
 // ── 앱 루트 경로 ──
+// dev: 프로젝트 루트, 패키지(asar): …/resources/app.asar 를 반환.
+// process.resourcesPath/'app'은 asar 빌드에서 존재하지 않으므로 절대 쓰면 안 됨.
 function getAppRoot() {
-  return isDev ? path.join(__dirname, '..') : path.join(process.resourcesPath, 'app');
+  return app.getAppPath();
 }
 
 // ── 전역 에러 핸들러 (조용한 크래시 방지) ──
@@ -41,13 +43,9 @@ process.on('unhandledRejection', (reason) => {
 
 // ── Express 서버 시작 (포트 폴백 포함) ──
 async function startServer() {
+  // 모든 모듈이 __dirname / 절대경로(%APPDATA%)만 쓰므로 cwd 변경 불필요.
+  // (asar는 디렉토리가 아니라 파일이라 chdir도 불가능)
   const appRoot = getAppRoot();
-  try {
-    process.chdir(appRoot);
-  } catch (e) {
-    log.warn('[main] chdir 실패(무시):', e.message);
-  }
-
   const serverPath = path.join(appRoot, 'server.js');
   log.info('[main] 서버 모듈 로드:', serverPath);
 
