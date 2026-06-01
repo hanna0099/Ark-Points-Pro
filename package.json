@@ -1,6 +1,6 @@
 {
   "name": "ark-points-pro",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Ark Points Pro - 포인트 자막 + 효과음 자동 생성 도구",
   "main": "electron/main.js",
   "scripts": {
@@ -20,7 +20,7 @@
   "build": {
     "appId": "com.arkstudio.pointspro",
     "productName": "Ark Points Pro",
-    "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
+    "artifactName": "${productName}-Setup-${arch}.${ext}",
     "directories": {
       "output": "dist"
     },
