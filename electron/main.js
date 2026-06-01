@@ -2,39 +2,41 @@
  * Ark Points Pro — Electron main process.
  *
  * Express 서버를 내장하고, BrowserWindow로 UI를 띄움.
- * exe 하나로 설치/실행 가능 (Node.js 별도 설치 불필요).
+ * exe/dmg 하나로 설치/실행 가능 (Node.js 별도 설치 불필요).
  */
 
-const { app, BrowserWindow, shell, Tray, Menu } = require('electron');
+const { app, BrowserWindow, shell, Tray, Menu, ipcMain, dialog, nativeImage } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 const isDev = !app.isPackaged;
+const isMac = process.platform === 'darwin';
 let mainWindow = null;
 let tray = null;
-let server = null;
 
 const PORT = 3838;
 
 // ── Express 서버 시작 ──
 function startServer() {
-  // server.js의 express app을 직접 require
-  // server.js가 app.listen()을 호출하므로, 그냥 require하면 서버가 뜸
-  const serverPath = isDev
-    ? path.join(__dirname, '..', 'server.js')
-    : path.join(process.resourcesPath, 'app', 'server.js');
-
-  // working directory를 앱 루트로 설정 (config/, public/ 등 상대경로 해결)
   const appRoot = isDev
     ? path.join(__dirname, '..')
     : path.join(process.resourcesPath, 'app');
   process.chdir(appRoot);
 
+  const serverPath = path.join(appRoot, 'server.js');
   try {
     require(serverPath);
     console.log('[Electron] Express server started on port', PORT);
   } catch (e) {
     console.error('[Electron] Server start failed:', e);
   }
+}
+
+// ── 아이콘 경로 헬퍼 ──
+function getIconPath(name) {
+  return isDev
+    ? path.join(__dirname, '..', name)
+    : path.join(process.resourcesPath, 'app', name);
 }
 
 // ── UI 윈도우 ──
@@ -45,9 +47,7 @@ function createWindow() {
     return;
   }
 
-  const iconPath = isDev
-    ? path.join(__dirname, '..', 'logo.ico')
-    : path.join(process.resourcesPath, 'app', 'logo.ico');
+  const iconPath = getIconPath(isMac ? 'public/logo.png' : 'logo.ico');
 
   mainWindow = new BrowserWindow({
     width: 1100,
@@ -60,12 +60,12 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
   mainWindow.loadURL(`http://localhost:${PORT}`);
 
-  // 외부 링크는 기본 브라우저로
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -73,17 +73,30 @@ function createWindow() {
 
   mainWindow.on('closed', () => (mainWindow = null));
 
-  // 메뉴 숨기기 (깔끔한 UX)
-  mainWindow.setMenuBarVisibility(false);
+  if (!isMac) {
+    mainWindow.setMenuBarVisibility(false);
+  }
 }
 
 // ── 트레이 아이콘 ──
 function createTray() {
-  const iconPath = isDev
-    ? path.join(__dirname, '..', 'logo.ico')
-    : path.join(process.resourcesPath, 'app', 'logo.ico');
+  let trayIcon;
+  if (isMac) {
+    // Mac: Template image로 만들면 다크/라이트 모드 자동 대응
+    const trayPath = getIconPath('trayTemplate.png');
+    if (fs.existsSync(trayPath)) {
+      trayIcon = nativeImage.createFromPath(trayPath);
+      trayIcon.setTemplateImage(true);
+    } else {
+      // fallback: logo.png 리사이즈
+      trayIcon = nativeImage.createFromPath(getIconPath('public/logo.png')).resize({ width: 18, height: 18 });
+      trayIcon.setTemplateImage(true);
+    }
+  } else {
+    trayIcon = getIconPath('logo.ico');
+  }
 
-  tray = new Tray(iconPath);
+  tray = new Tray(trayIcon);
   tray.setToolTip('Ark Points Pro');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '열기', click: createWindow },
@@ -93,11 +106,23 @@ function createTray() {
   tray.on('double-click', createWindow);
 }
 
+// ── IPC 핸들러 ──
+function setupIPC() {
+  ipcMain.handle('pick-folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      title: '효과음 폴더 선택',
+    });
+    if (result.canceled || result.filePaths.length === 0) return { path: null };
+    return { path: result.filePaths[0] };
+  });
+}
+
 // ── App lifecycle ──
 app.whenReady().then(() => {
+  setupIPC();
   startServer();
 
-  // 서버 뜰 때까지 잠깐 대기
   setTimeout(() => {
     createWindow();
     createTray();
@@ -105,7 +130,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // 트레이에 남아있으므로 종료하지 않음 (Windows 관례)
+  // 트레이에 남아있으므로 종료하지 않음 (Mac/Win 동일)
 });
 
 app.on('activate', () => {

@@ -1,6 +1,6 @@
 {
   "name": "ark-points-pro",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Ark Points Pro - 포인트 자막 + 효과음 자동 생성 도구",
   "main": "electron/main.js",
   "scripts": {
@@ -20,6 +20,7 @@
   "build": {
     "appId": "com.arkstudio.pointspro",
     "productName": "Ark Points Pro",
+    "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
     "directories": {
       "output": "dist"
     },
@@ -30,6 +31,7 @@
       "public/**/*",
       "config/**/*",
       "logo.ico",
+      "trayTemplate.png",
       "package.json"
     ],
     "asar": true,
@@ -38,9 +40,7 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
       ]
     },
@@ -54,20 +54,18 @@
     },
     "mac": {
       "category": "public.app-category.video",
-      "icon": "logo.ico",
+      "icon": "public/logo.png",
+      "identity": "-",
       "target": [
         {
           "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
+          "arch": ["arm64", "x64"]
         }
       ]
     },
     "publish": {
       "provider": "github",
-      "owner": "inhwan0988",
+      "owner": "hanna0099",
       "repo": "ark-points-pro",
       "releaseType": "release"
     }

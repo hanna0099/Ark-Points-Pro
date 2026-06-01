@@ -605,13 +605,13 @@ function renderRuleEditor() {
     <div class="rule-editor-folder">
       <span style="font-size:12px;color:#7d8590">📂 폴더:</span>
       <input type="text" id="rule-sound-dir" value="${escapeHtml(currentRules.soundDir)}"
-        placeholder="예: C:\\Users\\본인\\Documents\\효과음" onkeyup="if(event.key==='Enter') rescanSounds()">
-      <button onclick="pickSoundFolder()" title="윈도우 폴더 선택 창 열기">📁 찾아보기</button>
+        placeholder="효과음 폴더 경로" onkeyup="if(event.key==='Enter') rescanSounds()">
+      <button onclick="pickSoundFolder()" title="폴더 선택 창 열기">📁 찾아보기</button>
       <button onclick="rescanSounds()" title="입력한 폴더의 파일 다시 스캔">🔄 다시 스캔</button>
       <span class="muted">(${availableSounds.length}개 발견)</span>
     </div>
     <div class="muted" style="margin-top:6px;font-size:11px">
-      💡 폴더 경로를 직접 붙여넣어도 돼요. 윈도우 탐색기 주소창에서 복사 → 여기 붙여넣기 → "다시 스캔" 클릭
+      💡 폴더 경로를 직접 붙여넣어도 돼요. 탐색기/Finder 주소창에서 복사 → 여기 붙여넣기 → "다시 스캔" 클릭
     </div>
     <div class="rule-editor-categories">
       ${Object.entries(CATEGORY_LABELS).map(([cat, label]) => `
@@ -653,7 +653,12 @@ function removeSoundFromCat(cat, idx) {
 async function pickSoundFolder() {
   toast('폴더 선택 창을 여는 중...');
   try {
-    const r = await fetch('/api/pick-folder', { method: 'POST' }).then(r => r.json());
+    let r;
+    if (window.electronAPI && window.electronAPI.pickFolder) {
+      r = await window.electronAPI.pickFolder();
+    } else {
+      r = await fetch('/api/pick-folder', { method: 'POST' }).then(r => r.json());
+    }
     if (r.path) {
       document.getElementById('rule-sound-dir').value = r.path;
       currentRules.soundDir = r.path;

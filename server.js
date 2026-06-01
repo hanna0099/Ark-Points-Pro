@@ -294,8 +294,12 @@ app.get('/api/list-sequences', async (req, res) => {
   }
 });
 
-// 네이티브 폴더 선택 다이얼로그 - VBS BrowseForFolder (즉시 뜸, 안정적)
+// 네이티브 폴더 선택 다이얼로그 - VBS BrowseForFolder (Windows 전용 폴백)
+// Electron 환경에서는 preload.js → IPC → dialog.showOpenDialog()를 사용
 app.post('/api/pick-folder', (req, res) => {
+  if (process.platform !== 'win32') {
+    return res.status(400).json({ error: 'Electron 앱의 폴더 선택 버튼을 사용하세요' });
+  }
   const { spawn } = require('child_process');
   const fsMod = require('fs');
   const pathMod = require('path');
