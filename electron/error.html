@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ark Points Pro — 실행 오류</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0a0a0a;
+      color: #f5f5f5;
+      font-family: "Segoe UI", "Malgun Gothic", -apple-system, sans-serif;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .wrap {
+      height: 100%;
+      box-sizing: border-box;
+      padding: 48px 56px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      justify-content: center;
+    }
+    h1 { font-size: 22px; margin: 0; color: #ff6b6b; }
+    p { font-size: 14px; line-height: 1.7; color: #c5c9d1; margin: 0; }
+    .box {
+      background: #15161a;
+      border: 1px solid #2a2c33;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12.5px;
+      color: #ff9b9b;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 160px;
+      overflow: auto;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    .path {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      color: #6c8cff;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    .steps { font-size: 13px; color: #9aa0aa; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>앱을 시작하지 못했습니다</h1>
+    <p>아래 오류 내용을 개발자에게 전달해 주시면 빠르게 해결할 수 있어요.</p>
+    <div class="box" id="msg">알 수 없는 오류</div>
+    <div class="steps">
+      해결 시도:
+      <br />• 컴퓨터를 재부팅한 뒤 다시 실행해 보세요.
+      <br />• 백신/방화벽이 차단하지 않는지 확인해 주세요.
+      <br />• 그래도 안 되면 아래 로그 파일을 보내주세요.
+    </div>
+    <p>로그 파일 위치:</p>
+    <div class="path" id="logpath">-</div>
+  </div>
+  <script>
+    // main 프로세스가 #error=...&log=... 형태로 넘겨줌
+    const params = new URLSearchParams(location.hash.slice(1));
+    const msg = params.get('error');
+    const logp = params.get('log');
+    if (msg) document.getElementById('msg').textContent = decodeURIComponent(msg);
+    if (logp) document.getElementById('logpath').textContent = decodeURIComponent(logp);
+  </script>
+</body>
+</html>

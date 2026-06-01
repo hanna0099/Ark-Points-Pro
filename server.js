@@ -10,9 +10,10 @@ const srtParser = require('./lib/srt-parser');
 const pointAnalyzer = require('./lib/point-analyzer-pro');
 const soundMatcher = require('./lib/sound-matcher');
 const summarizer = require('./lib/summarizer');
+const log = require('./lib/logger');
 
 const app = express();
-const PORT = 3838;
+const DEFAULT_PORT = 3838;
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -587,17 +588,67 @@ app.post('/api/apply-to-pp', async (req, res) => {
 // ============================================
 // 서버 시작
 // ============================================
-app.listen(PORT, '0.0.0.0', () => {
-  const os = require('os');
-  const nets = os.networkInterfaces();
-  const lanIPs = [];
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      if (net.family === 'IPv4' && !net.internal) lanIPs.push(net.address);
-    }
-  }
-  console.log(`\n⭐ Ark Points Pro 실행 중`);
-  console.log(`   본인 PC:     http://localhost:${PORT}`);
-  lanIPs.forEach(ip => console.log(`   같은 Wi-Fi:  http://${ip}:${PORT}`));
-  console.log(`\n   기능: Vrew SRT → 포인트 자막 + 효과음 → PP 정확 반영\n`);
-});
+
+/**
+ * Express 서버를 시작합니다. 포트가 사용 중이면(EADDRINUSE) 자동으로
+ * 다음 포트를 순차 시도합니다. 절대 throw 하지 않고 Promise로 결과를 반환하므로
+ * 호출 측(메인 프로세스)이 크래시하지 않습니다.
+ *
+ * @param {number} preferredPort 우선 시도할 포트 (기본 3838)
+ * @param {number} maxAttempts   최대 시도 횟수
+ * @returns {Promise<{port:number}>}
+ */
+function startServer(preferredPort = DEFAULT_PORT, maxAttempts = 15) {
+  return new Promise((resolve, reject) => {
+    let attempt = 0;
+
+    const tryListen = (port) => {
+      attempt++;
+      log.info(`[server] 포트 ${port} 시도 중... (${attempt}/${maxAttempts})`);
+
+      const server = app.listen(port, '0.0.0.0');
+
+      server.once('listening', () => {
+        const os = require('os');
+        const nets = os.networkInterfaces();
+        const lanIPs = [];
+        for (const name of Object.keys(nets)) {
+          for (const net of nets[name]) {
+            if (net.family === 'IPv4' && !net.internal) lanIPs.push(net.address);
+          }
+        }
+        log.info(`[server] ⭐ Ark Points Pro 실행 중 — http://localhost:${port}`);
+        lanIPs.forEach((ip) => log.info(`[server]    같은 Wi-Fi: http://${ip}:${port}`));
+        resolve({ port });
+      });
+
+      server.once('error', (err) => {
+        if (err && err.code === 'EADDRINUSE') {
+          log.warn(`[server] 포트 ${port} 이미 사용 중 → 다음 포트 시도`);
+          if (attempt >= maxAttempts) {
+            log.error(`[server] 사용 가능한 포트를 찾지 못함 (${maxAttempts}회 시도)`);
+            return reject(new Error(`사용 가능한 포트를 찾지 못했습니다 (${preferredPort}~${port}).`));
+          }
+          // 같은 server 인스턴스는 재사용 불가 → 다음 포트로 새로 시도
+          tryListen(port + 1);
+        } else {
+          log.error('[server] 서버 시작 실패:', err);
+          reject(err);
+        }
+      });
+    };
+
+    tryListen(preferredPort);
+  });
+}
+
+module.exports = { app, startServer, DEFAULT_PORT };
+
+// node server.js 로 직접 실행했을 때만 자동으로 listen (Electron에선 main.js가 호출)
+if (require.main === module) {
+  log.init();
+  startServer(DEFAULT_PORT).catch((e) => {
+    log.error('[server] standalone 시작 실패:', e);
+    process.exit(1);
+  });
+}
