@@ -20,7 +20,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: dist/*Setup*.exe
+          # electron-updater 자동 업데이트에 필요: 설치 파일 + latest.yml + blockmap
+          path: |
+            dist/*Setup*.exe
+            dist/latest.yml
+            dist/*.blockmap
 
   build-mac:
     runs-on: macos-latest
@@ -53,6 +57,8 @@ jobs:
         with:
           files: |
             artifacts/windows-installer/*.exe
+            artifacts/windows-installer/latest.yml
+            artifacts/windows-installer/*.blockmap
             artifacts/mac-installers/*.dmg
           draft: false
           prerelease: false

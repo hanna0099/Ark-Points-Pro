@@ -16,6 +16,7 @@ const fs = require('fs');
 
 const log = require('../lib/logger');
 const { maybeInstallCep } = require('../lib/cep-installer');
+const { initUpdater } = require('../lib/updater');
 
 const isDev = !app.isPackaged;
 const isMac = process.platform === 'darwin';
@@ -253,6 +254,10 @@ if (!gotLock) {
     // 본 화면이 뜬 뒤(또는 오류 화면이라도) CEP 확장 설치를 1회 점검한다.
     // 자체적으로 try/catch 하므로 서버 성공 여부와 무관하게 안전하게 호출.
     maybeInstallCep(mainWindow);
+
+    // 자동 업데이트 확인 (Win: 자동설치, Mac: 알림+다운로드 페이지).
+    // dev에서는 내부적으로 비활성. 시작을 막지 않도록 await하지 않는다.
+    initUpdater(mainWindow);
   });
 
   app.on('window-all-closed', () => {
