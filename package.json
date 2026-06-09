@@ -21,7 +21,7 @@
   "build": {
     "appId": "com.arkstudio.pointspro",
     "productName": "Ark Points Pro",
-    "artifactName": "${productName}-Setup-${arch}.${ext}",
+    "artifactName": "Ark.Points.Pro-Setup-${arch}.${ext}",
     "directories": {
       "output": "dist"
     },
